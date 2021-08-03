@@ -1,0 +1,4 @@
+# Pocket API key
+# Keep as is for "maubot-pocket" (https://getpocket.com/developer/app/98414/38ab9142877cc282adf9f8a4)
+# or create your own Pocket app at https://getpocket.com/developer/apps/
+api_key: 98414-38ab9142877cc282adf9f8a4
