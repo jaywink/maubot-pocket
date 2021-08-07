@@ -1,5 +1,6 @@
+import random
 import urllib.parse
-from typing import Type, Dict
+from typing import Type, Dict, Optional
 from uuid import uuid4
 
 from aiohttp.web import Request, Response, json_response
@@ -9,7 +10,7 @@ from maubot import Plugin, MessageEvent
 from maubot.handlers import command, web
 from sqlalchemy.exc import DBAPIError
 
-from pocket.db import Database
+from pocket.db import Database, User
 
 
 class Config(BaseProxyConfig):
@@ -55,18 +56,52 @@ class PocketPlugin(Plugin):
         # TODO make all responses render a web page, not JSON
         return json_response({})
 
+    async def get_random_article(self, user: User) -> Optional[Dict]:
+        response = await self.http.post(
+            "https://getpocket.com/v3/get",
+            headers={
+                "X-Accept": "application/json",
+            },
+            json={
+                "consumer_key": self.config["api_key"],
+                "access_token": user.access_token,
+                "detailType": "simple",
+            },
+        )
+        if response.status != 200:
+            self.log.warning(f"Unexpected status fetching random article: {response.status}")
+            return
+        data = await response.json()
+        # noinspection PyBroadException
+        try:
+            articles = [item for item in data["list"].values()]
+        except Exception as ex:
+            self.log.warning(f"Unexpected error fetching random article: {ex}")
+            return
+        self.log.info(f"Got {len(articles)} articles for a user, randomizing one")
+        return articles[random.randint(0, len(articles)-1)]
+
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
         return Config
 
-    @command.new("pocket")
+    @command.new("pocket", require_subcommand=False)
     async def handler(self, event: MessageEvent) -> None:
         await event.mark_read()
-        # TODO raise if not authed, otherwise fetch random article
-        await event.respond("Woop woop")
+        user = self.db.get_user_by_id(event.sender)
+        if not user or not user.access_token:
+            await event.respond("You're not logged into Pocket. Try `!pocket login` first.")
+            return
+
+        article = await self.get_random_article(user)
+        if not article:
+            await event.respond("Didn't find any saved articles. Is your Pocket empty? Or did we hit an error?")
+            return
+        await event.respond(f"{article['resolved_title']} - {article['resolved_url']}")
 
     @handler.subcommand(help="Authenticate with Pocket")
     async def login(self, event: MessageEvent) -> None:
+        await event.mark_read()
         user = self.db.get_user_by_id(event.sender)
         if user and user.access_token:
             await event.respond(
@@ -96,6 +131,7 @@ class PocketPlugin(Plugin):
 
     @handler.subcommand(help="Disconnect from Pocket")
     async def logout(self, event: MessageEvent) -> None:
+        await event.mark_read()
         user = self.db.get_user_by_id(event.sender)
         if not user or not user.access_token:
             await event.respond("You're not logged into Pocket.")
