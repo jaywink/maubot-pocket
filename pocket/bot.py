@@ -1,10 +1,10 @@
 import random
 import urllib.parse
-from typing import Type, Dict, Optional
+from typing import Type, Dict, Optional, Tuple
 from uuid import uuid4
 
 from aiohttp.web import Request, Response, json_response
-from mautrix.types import UserID
+from mautrix.types import UserID, EventType, ReactionEvent
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 from maubot import Plugin, MessageEvent
 from maubot.handlers import command, web
@@ -20,6 +20,42 @@ class Config(BaseProxyConfig):
 
 class PocketPlugin(Plugin):
     db: Database
+
+    @command.passive(
+        event_type=EventType.REACTION,
+        field=lambda e: e.content.relates_to.key,
+        msgtypes=[],
+        regex=r"\U00002705|\U00002611|\U00002714",
+    )
+    async def archive(self, event: ReactionEvent, _: Tuple[str]) -> None:
+        item_event = self.db.get_user_event(event.sender, event.content.relates_to.event_id)
+        if item_event:
+            user = self.db.get_user_by_id(event.sender)
+            if not user or not user.access_token:
+                return
+            response = await self.http.post(
+                "https://getpocket.com/v3/send",
+                headers={
+                    "X-Accept": "application/json",
+                },
+                json={
+                    "consumer_key": self.config["api_key"],
+                    "access_token": user.access_token,
+                    "actions": [{
+                        "action": "archive",
+                        "item_id": item_event.item_id,
+                    }]
+                },
+            )
+            if response.status != 200:
+                self.log.warning(f"Unexpected status archiving article: {response.status}")
+                return
+            self.log.info(f"Successfully archived item {item_event.item_id}")
+            await self.client.react(
+                event.room_id,
+                event.content.relates_to.event_id,
+                "🆗",
+            )
 
     @web.get("/authorize/{request_state}")
     async def authorize(self, request: Request) -> Response:
@@ -97,7 +133,8 @@ class PocketPlugin(Plugin):
         if not article:
             await event.respond("Didn't find any saved articles. Is your Pocket empty? Or did we hit an error?")
             return
-        await event.respond(f"{article['resolved_title']} - {article['resolved_url']}")
+        self.db.store_user_event(event.sender, event.event_id, article["item_id"])
+        await event.respond(f"{article['resolved_title']} - {article['resolved_url']}   (react with ✅ to archive)")
 
     @handler.subcommand(help="Authenticate with Pocket")
     async def login(self, event: MessageEvent) -> None:

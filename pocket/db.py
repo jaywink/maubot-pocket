@@ -1,12 +1,20 @@
 from datetime import datetime
 from typing import NamedTuple, Optional
 
-from mautrix.types import UserID, RoomID
+from mautrix.types import UserID, RoomID, EventID
 from sqlalchemy import (
     Column, String, Integer, DateTime, Table, MetaData, select,
 )
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.exc import IntegrityError
+
+Event = NamedTuple(
+    "Event",
+    id=int,
+    event_id=EventID,
+    item_id=str,
+    user_id=UserID,
+)
 
 User = NamedTuple(
     "User",
@@ -39,6 +47,14 @@ class Database:
             Column("request_token_date", DateTime, nullable=True),
             Column("request_state", String(255), nullable=False, default=""),
         )
+        self.event = Table(
+            "events",
+            metadata,
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("event_id", String(255), nullable=False, unique=True),
+            Column("item_id", String(255), nullable=False),
+            Column("user_id", String(255), nullable=False),
+        )
         self.version = Table(
             "version",
             metadata,
@@ -63,6 +79,16 @@ class Database:
         try:
             row = next(rows)
             return User(*row)
+        except (ValueError, StopIteration):
+            return None
+
+    def get_user_event(self, user_id: UserID, event_id: EventID):
+        rows = self.db.execute(
+            select([self.event]).where(self.event.c.user_id == user_id and self.event.c.event_id == event_id)
+        )
+        try:
+            row = next(rows)
+            return Event(*row)
         except (ValueError, StopIteration):
             return None
 
@@ -103,6 +129,16 @@ class Database:
                     ),
             )
 
+    def store_user_event(self, user_id: UserID, event_id: EventID, item_id: str) -> None:
+        self.db.execute(
+            self.event.insert()
+                .values(
+                    event_id=event_id,
+                    item_id=item_id,
+                    user_id=user_id,
+                ),
+        )
+
     def upgrade(self) -> None:
         self.db.execute("CREATE TABLE IF NOT EXISTS version (version INTEGER PRIMARY KEY)")
         try:
@@ -122,5 +158,15 @@ class Database:
                 UNIQUE (user_id)
             )""")
             version = 1
+        if version == 1:
+            self.db.execute("""CREATE TABLE IF NOT EXISTS events (
+                id INTEGER NOT NULL,
+                event_id VARCHAR(255) NOT NULL,
+                item_id VARCHAR(255) NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE (event_id)
+            )""")
+            version = 2
         self.db.execute(self.version.delete())
         self.db.execute(self.version.insert().values(version=version))
