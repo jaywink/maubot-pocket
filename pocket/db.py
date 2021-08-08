@@ -3,7 +3,7 @@ from typing import NamedTuple, Optional
 
 from mautrix.types import UserID, RoomID, EventID
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Table, MetaData, select,
+    Column, String, Integer, DateTime, Table, MetaData, select, and_,
 )
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.exc import IntegrityError
@@ -84,7 +84,7 @@ class Database:
 
     def get_user_event(self, user_id: UserID, event_id: EventID):
         rows = self.db.execute(
-            select([self.event]).where(self.event.c.user_id == user_id and self.event.c.event_id == event_id)
+            select([self.event]).where(and_(self.event.c.user_id == user_id, self.event.c.event_id == event_id))
         )
         try:
             row = next(rows)
