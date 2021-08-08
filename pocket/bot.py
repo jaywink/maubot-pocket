@@ -3,7 +3,7 @@ import urllib.parse
 from typing import Type, Dict, Optional, Tuple
 from uuid import uuid4
 
-from aiohttp.web import Request, Response, json_response
+from aiohttp.web import Request, Response
 from mautrix.types import UserID, EventType, ReactionEvent
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 from maubot import Plugin, MessageEvent
@@ -61,11 +61,11 @@ class PocketPlugin(Plugin):
     async def authorize(self, request: Request) -> Response:
         request_state = request.match_info.get("request_state")
         if not request_state:
-            return json_response({}, status=400)
+            return Response(text=f"Failed to connect to Pocket, no request_state found.")
 
         user = self.db.get_user_by_request_state(request_state)
         if not user:
-            return json_response({}, status=400)
+            return Response(text=f"Failed to connect to Pocket, could not match request state to a request.")
 
         data = await self.pocket_authorize(user.request_token)
         if data.get("error_code"):
@@ -74,7 +74,10 @@ class PocketPlugin(Plugin):
                 user.request_room,
                 f"Failed to connect to Pocket, response code: {data.get('error_code')}",
             )
-            return json_response({}, status=400)
+            return Response(
+                text=f"Failed to connect to Pocket, response code: {data.get('error_code')}. "
+                     f"Please try giving the command again.",
+            )
         try:
             self.db.set_user_access_token(UserID(user.user_id), data.get("access_token"))
         except DBAPIError as ex:
@@ -83,14 +86,15 @@ class PocketPlugin(Plugin):
                 user.request_room,
                 f"Failed to connect to Pocket due to database error. Please try again.",
             )
-            return json_response({}, status=400)
+            return Response(
+                text="Failed to connect to Pocket due to database error. Please try giving the command again.",
+            )
         self.log.info(f"User {user.user_id} successfully connected to Pocket")
         await self.client.send_notice(
             user.request_room,
             f"Successfully connected to Pocket! Use `!pocket` to get a random article.",
         )
-        # TODO make all responses render a web page, not JSON
-        return json_response({})
+        return Response(text="Successfully connected to Pocket! You can safely close this window.")
 
     async def get_random_article(self, user: User) -> Optional[Dict]:
         response = await self.http.post(

@@ -5,7 +5,7 @@ maubot: 0.1.2
 id: me.jasonrobinson.pocket
 
 # A PEP 440 compliant version string.
-version: 0.1.16
+version: 0.1.17
 
 # The SPDX license identifier for the plugin. https://spdx.org/licenses/
 # Optional, assumes all rights reserved if omitted.
