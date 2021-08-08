@@ -133,9 +133,10 @@ class PocketPlugin(Plugin):
         if not article:
             await event.respond("Didn't find any saved articles. Is your Pocket empty? Or did we hit an error?")
             return
-        self.db.store_user_event(event.sender, event.event_id, article["item_id"])
-        await event.respond(f"{article['resolved_title']} - {article['resolved_url']} "
-                            f"(react ✅ to archive, [open in Pocket](https://getpocket.com/read/{article['item_id']}))")
+        event_id = await event.respond(
+            f"{article['resolved_title']} - {article['resolved_url']} "
+            f"(react ✅ to archive, [open in Pocket](https://getpocket.com/read/{article['item_id']}))")
+        self.db.store_user_event(event.sender, event_id, article["item_id"])
 
     @handler.subcommand(help="Authenticate with Pocket")
     async def login(self, event: MessageEvent) -> None:
