@@ -26,8 +26,11 @@ to a page that hopefully shows you have authenticated correctly.
 Going back to the chat room, you can now use the `!pocket` command (without any parameters) to receive
 a random article from your list.
 
-To archive the article, react to the article with `✅`. You can also open the article in Pocket by 
+To archive the article, react to the article with `✅` or `👎`. You can also open the article in Pocket by 
 cicking the provided link, for example to add tags.
+
+Should you want a new article you can also react to a previously posted article message with either
+`➕` or `👍`.
 
 If you want to disconnect the bot from Pocket, use the command `!pocket logout`. This will destroy
 the access token from the bots database.
