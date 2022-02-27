@@ -58,13 +58,13 @@ class PocketPlugin(Plugin):
     @staticmethod
     def format_article_message(article):
         return f"{article['resolved_title']} - {article['resolved_url']} " \
-               f"(✅ to archive, [view in Pocket](https://getpocket.com/read/{article['item_id']}), 👍/➕ for another)"
+               f"(✅/👎 to archive, [view in Pocket](https://getpocket.com/read/{article['item_id']}), 👍/➕ for another)"
 
     @command.passive(
         event_type=EventType.REACTION,
         field=lambda e: e.content.relates_to.key,
         msgtypes=[],
-        regex=r"\U00002705|\U00002611|\U00002714",
+        regex=r"\U00002705|\U00002611|\U00002714|\U0001F44E",
     )
     async def archive(self, event: ReactionEvent, _: Tuple[str]) -> None:
         item_event = self.db.get_user_event(event.sender, event.content.relates_to.event_id)

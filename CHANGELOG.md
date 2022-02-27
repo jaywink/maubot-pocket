@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.2.4 (2022-02-27)
+
+* Alias 👎 to archiving an article (closes #3)
+
 ## v0.2.3 (2022-02-27)
 
 * Add possibility to get another article by reacting with 👍 or ➕.
