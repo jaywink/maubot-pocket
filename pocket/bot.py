@@ -25,6 +25,45 @@ class PocketPlugin(Plugin):
         event_type=EventType.REACTION,
         field=lambda e: e.content.relates_to.key,
         msgtypes=[],
+        regex=r"\U00002795|\U0001F44D",
+    )
+    async def another(self, event: ReactionEvent, _: Tuple[str]) -> None:
+        item_event = self.db.get_user_event(event.sender, event.content.relates_to.event_id)
+        if not item_event:
+            return
+
+        user = self.db.get_user_by_id(event.sender)
+        if not user or not user.access_token:
+            await self.client.react(
+                event.room_id,
+                event.content.relates_to.event_id,
+                "❌",
+            )
+            return
+
+        article = await self.get_random_article(user)
+        if not article:
+            await self.client.react(
+                event.room_id,
+                event.content.relates_to.event_id,
+                "🤷",
+            )
+            return
+        event_id = await self.client.send_markdown(
+            room_id=event.room_id,
+            markdown=self.format_article_message(article),
+        )
+        self.db.store_user_event(event.sender, event_id, article["item_id"])
+
+    @staticmethod
+    def format_article_message(article):
+        return f"{article['resolved_title']} - {article['resolved_url']} " \
+               f"(✅ to archive, [view in Pocket](https://getpocket.com/read/{article['item_id']}), 👍/➕ for another)"
+
+    @command.passive(
+        event_type=EventType.REACTION,
+        field=lambda e: e.content.relates_to.key,
+        msgtypes=[],
         regex=r"\U00002705|\U00002611|\U00002714",
     )
     async def archive(self, event: ReactionEvent, _: Tuple[str]) -> None:
@@ -137,9 +176,7 @@ class PocketPlugin(Plugin):
         if not article:
             await event.respond("Didn't find any saved articles. Is your Pocket empty? Or did we hit an error?")
             return
-        event_id = await event.respond(
-            f"{article['resolved_title']} - {article['resolved_url']} "
-            f"(react ✅ to archive, [open in Pocket](https://getpocket.com/read/{article['item_id']}))")
+        event_id = await event.respond(self.format_article_message(article))
         self.db.store_user_event(event.sender, event_id, article["item_id"])
 
     @handler.subcommand(help="Authenticate with Pocket")
